@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <unity.h>
 
+#include "cabinet_workflow.h"
 #include "fsm.h"
 
 namespace {
@@ -22,8 +23,32 @@ ClassifiedUid makeKey(const char* uid, const char* name, const char* status) {
   c.keyStatus = status;
   return c;
 }
+
+ClassifiedUid makeServerError() {
+  ClassifiedUid c;
+  c.type = ScanType::ServerError;
+  c.code = ServerCode::Error;
+  return c;
 }
 
+ProcessResult makeProcessOk(const char* action) {
+  ProcessResult result;
+  result.ok = true;
+  result.code = ServerCode::Ok;
+  result.action = action;
+  return result;
+}
+
+ProcessResult makeProcessFailure(ServerCode code) {
+  ProcessResult result;
+  result.ok = false;
+  result.code = code;
+  return result;
+}
+}
+
+// Verifies that the FSM starts a TAKE transaction only after a valid user scan,
+// preserving the scanned user identity and starting the timeout window.
 void test_idle_user_scan_starts_take_flow() {
   CabinetContext ctx;
   ClassifiedUid user = makeUser("U001", "Alice");
@@ -37,6 +62,8 @@ void test_idle_user_scan_starts_take_flow() {
   TEST_ASSERT_EQUAL_UINT32(1234, ctx.pendingSince);
 }
 
+// Verifies that a key marked as OUT can start the RETURN flow from Idle,
+// and that the pending key context is captured for the second scan.
 void test_idle_key_scan_out_starts_return_flow() {
   CabinetContext ctx;
   ClassifiedUid key = makeKey("K001", "Lab", "OUT");
@@ -50,6 +77,8 @@ void test_idle_key_scan_out_starts_return_flow() {
   TEST_ASSERT_EQUAL_UINT32(2500, ctx.pendingSince);
 }
 
+// Verifies that scanning a key which is already IN does not start RETURN,
+// and instead produces an immediate denial without leaving stale pending data.
 void test_idle_key_scan_in_is_denied() {
   CabinetContext ctx;
   ClassifiedUid key = makeKey("K001", "Lab", "IN");
@@ -62,6 +91,8 @@ void test_idle_key_scan_in_is_denied() {
   TEST_ASSERT_EQUAL_UINT32(0, ctx.pendingSince);
 }
 
+// Verifies the second TAKE step: when a key is scanned after a valid user,
+// the FSM enters ProcessingTake and emits a request payload for the backend.
 void test_awaiting_key_scan_starts_take_processing() {
   CabinetContext ctx;
   ctx.state = CabinetState::AwaitingKeyForTake;
@@ -78,6 +109,8 @@ void test_awaiting_key_scan_starts_take_processing() {
   TEST_ASSERT_EQUAL_STRING("K777", r.keyUid.c_str());
 }
 
+// Verifies the second RETURN step: when the user scans after a valid key,
+// the FSM enters ProcessingReturn and emits the correct RETURN request data.
 void test_awaiting_user_scan_starts_return_processing() {
   CabinetContext ctx;
   ctx.state = CabinetState::AwaitingUserForReturn;
@@ -94,6 +127,8 @@ void test_awaiting_user_scan_starts_return_processing() {
   TEST_ASSERT_EQUAL_STRING("K777", r.keyUid.c_str());
 }
 
+// Verifies that a pending two-scan transaction times out back to Idle,
+// clears buffered scan data, and requests timeout-specific UI feedback.
 void test_timeout_resets_pending_state() {
   CabinetContext ctx;
   ctx.state = CabinetState::AwaitingKeyForTake;
@@ -108,6 +143,8 @@ void test_timeout_resets_pending_state() {
   TEST_ASSERT_EQUAL_UINT32(0, ctx.pendingSince);
 }
 
+// Verifies that a successful TAKE backend result finishes the transaction,
+// clears pending state, and requests the unlock-and-success effect.
 void test_take_completed_unlocks_and_returns_idle() {
   CabinetContext ctx;
   ctx.state = CabinetState::ProcessingTake;
@@ -122,6 +159,8 @@ void test_take_completed_unlocks_and_returns_idle() {
   TEST_ASSERT_EQUAL_STRING("", ctx.pendingKeyUid.c_str());
 }
 
+// Verifies that a backend business-rule rejection returns the FSM to Idle
+// and surfaces the denial effect instead of unlocking the cabinet.
 void test_processing_denied_returns_idle_with_denied_effect() {
   CabinetContext ctx;
   ctx.state = CabinetState::ProcessingReturn;
@@ -136,6 +175,36 @@ void test_processing_denied_returns_idle_with_denied_effect() {
   TEST_ASSERT_EQUAL_STRING("", ctx.pendingKeyUid.c_str());
 }
 
+// Verifies that classify-time backend failures bypass the access-denied path
+// and request an immediate server-failure effect for the operator.
+void test_server_error_classification_requests_server_fail_effect() {
+  ClassifiedScanDecision decision = decideClassifiedScan(makeServerError());
+
+  TEST_ASSERT_TRUE(decision.useImmediateEffect);
+  TEST_ASSERT_EQUAL_INT((int)CabinetEffect::ShowServerFail, (int)decision.immediateEffect);
+  TEST_ASSERT_EQUAL_INT((int)CabinetEventType::DeniedScan, (int)decision.event);
+}
+
+// Verifies that a successful backend reply with the wrong action does not
+// complete the transaction and is instead treated as a protocol failure.
+void test_successful_process_with_mismatched_action_fails() {
+  ProcessResult process = makeProcessOk("RETURN");
+
+  CabinetEventType event = decideProcessFollowUpEvent(process, "TAKE");
+
+  TEST_ASSERT_EQUAL_INT((int)CabinetEventType::ProcessFailed, (int)event);
+}
+
+// Verifies that known business-rule process failures still map to the denied
+// path, preserving the distinction between expected denials and system errors.
+void test_known_process_denial_maps_to_process_denied() {
+  ProcessResult process = makeProcessFailure(ServerCode::KeyNotAvailable);
+
+  CabinetEventType event = decideProcessFollowUpEvent(process, "TAKE");
+
+  TEST_ASSERT_EQUAL_INT((int)CabinetEventType::ProcessDenied, (int)event);
+}
+
 void setup() {
   delay(2000);
   UNITY_BEGIN();
@@ -148,6 +217,9 @@ void setup() {
   RUN_TEST(test_timeout_resets_pending_state);
   RUN_TEST(test_take_completed_unlocks_and_returns_idle);
   RUN_TEST(test_processing_denied_returns_idle_with_denied_effect);
+  RUN_TEST(test_server_error_classification_requests_server_fail_effect);
+  RUN_TEST(test_successful_process_with_mismatched_action_fails);
+  RUN_TEST(test_known_process_denial_maps_to_process_denied);
 
   UNITY_END();
 }

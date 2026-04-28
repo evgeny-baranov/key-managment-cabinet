@@ -2,6 +2,7 @@
 #include <WiFi.h>
 
 #include "config.h"
+#include "../lib/cabinet_core/src/cabinet_workflow.h"
 #include "../lib/cabinet_core/src/constants.h"
 #include "display_ui.h"
 #include "../lib/cabinet_core/src/fsm.h"
@@ -36,27 +37,6 @@ void showResultThenIdle(bool ok, const String& line1, const String& line2 = "") 
   goToIdle();
 }
 
-CabinetEventType mapProcessEvent(const ProcessResult& processResult, const String& expectedAction) {
-  if (processResult.ok) {
-    if (expectedAction == ACTION_TAKE) {
-      return CabinetEventType::TakeCompleted;
-    }
-    return CabinetEventType::ReturnCompleted;
-  }
-
-  if (
-    processResult.code == ServerCode::KeyNotAvailable ||
-    processResult.code == ServerCode::KeyAlreadyIn ||
-    processResult.code == ServerCode::UserNotFound ||
-    processResult.code == ServerCode::UserInactive ||
-    processResult.code == ServerCode::KeyNotFound
-  ) {
-    return CabinetEventType::ProcessDenied;
-  }
-
-  return CabinetEventType::ProcessFailed;
-}
-
 void runEffect(const TransitionResult& result, const ClassifiedUid* classified, const ProcessResult* processResult);
 
 void runProcessRequest(const TransitionResult& result) {
@@ -70,22 +50,26 @@ void runProcessRequest(const TransitionResult& result) {
 
   String rawResult = processActionHttp(result.action, result.userUid, result.keyUid);
   ProcessResult process = parseProcessResponse(rawResult);
+  CabinetEventType followUpEvent = decideProcessFollowUpEvent(process, result.action);
 
-  if (process.ok) {
+  if (process.ok && followUpEvent != CabinetEventType::ProcessFailed) {
     Serial.print(result.action);
     Serial.println(" logged successfully");
     Serial.println(rawResult);
-  } else if (mapProcessEvent(process, result.action) == CabinetEventType::ProcessDenied) {
+  } else if (followUpEvent == CabinetEventType::ProcessDenied) {
     Serial.print(result.action);
     Serial.println(" denied");
     Serial.println(rawResult);
   } else {
     Serial.print(result.action);
     Serial.println(" failed");
+    if (process.ok) {
+      Serial.print("Unexpected action in response: ");
+      Serial.println(process.action);
+    }
     Serial.println(rawResult);
   }
 
-  CabinetEventType followUpEvent = mapProcessEvent(process, result.action);
   TransitionResult followUp = transition(cabinet, followUpEvent, nullptr, &process, millis());
   runEffect(followUp, nullptr, &process);
 }
@@ -175,17 +159,16 @@ void checkTimeout() {
 }
 
 void processClassified(const ClassifiedUid& classified) {
-  CabinetEventType event = CabinetEventType::DeniedScan;
+  ClassifiedScanDecision decision = decideClassifiedScan(classified);
 
-  if (classified.type == ScanType::User) {
-    event = CabinetEventType::UserScanned;
-  } else if (classified.type == ScanType::Key) {
-    event = CabinetEventType::KeyScanned;
-  } else {
-    event = CabinetEventType::DeniedScan;
+  if (decision.useImmediateEffect) {
+    TransitionResult immediateResult;
+    immediateResult.effect = decision.immediateEffect;
+    runEffect(immediateResult, &classified, nullptr);
+    return;
   }
 
-  TransitionResult eventResult = transition(cabinet, event, &classified, nullptr, millis());
+  TransitionResult eventResult = transition(cabinet, decision.event, &classified, nullptr, millis());
   runEffect(eventResult, &classified, nullptr);
 }
 }
