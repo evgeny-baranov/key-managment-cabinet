@@ -1,2 +1,4 @@
 .DS_Store
-
+rfid_screen_system_with_lock_take_and_return/config.h
+.pio
+.vscode

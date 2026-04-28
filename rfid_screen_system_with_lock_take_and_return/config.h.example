@@ -1,0 +1,5 @@
+#pragma once
+
+constexpr const char* WIFI_SSID = "CHANGE_ME";
+constexpr const char* WIFI_PASSWORD = "CHANGE_ME";
+constexpr const char* SCRIPT_URL = "https://script.google.com/macros/s/.../exec";

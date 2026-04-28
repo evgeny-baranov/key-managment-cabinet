@@ -106,6 +106,21 @@ In many schools, key management is still handled manually, often relying on a lo
 
 # Testing
 
+## Firmware architecture
+
+Main firmware in [rfid_screen_system_with_lock_take_and_return/rfid_screen_system_with_lock_take_and_return.ino](rfid_screen_system_with_lock_take_and_return/rfid_screen_system_with_lock_take_and_return.ino) is an orchestration layer and delegates responsibilities to focused modules:
+
+- [rfid_screen_system_with_lock_take_and_return/constants.h](rfid_screen_system_with_lock_take_and_return/constants.h) -> hardware pins, timing values, and protocol string constants
+- [rfid_screen_system_with_lock_take_and_return/config.h.example](rfid_screen_system_with_lock_take_and_return/config.h.example) -> template for local Wi-Fi and Apps Script configuration
+- [rfid_screen_system_with_lock_take_and_return/protocol.h](rfid_screen_system_with_lock_take_and_return/protocol.h) and [rfid_screen_system_with_lock_take_and_return/protocol.cpp](rfid_screen_system_with_lock_take_and_return/protocol.cpp) -> URL builders and server response parsers
+- [rfid_screen_system_with_lock_take_and_return/fsm.h](rfid_screen_system_with_lock_take_and_return/fsm.h) and [rfid_screen_system_with_lock_take_and_return/fsm.cpp](rfid_screen_system_with_lock_take_and_return/fsm.cpp) -> explicit TAKE/RETURN finite-state machine transitions
+- Hardware effects wrappers:
+- [rfid_screen_system_with_lock_take_and_return/display_ui.h](rfid_screen_system_with_lock_take_and_return/display_ui.h) and [rfid_screen_system_with_lock_take_and_return/display_ui.cpp](rfid_screen_system_with_lock_take_and_return/display_ui.cpp)
+- [rfid_screen_system_with_lock_take_and_return/led_ui.h](rfid_screen_system_with_lock_take_and_return/led_ui.h) and [rfid_screen_system_with_lock_take_and_return/led_ui.cpp](rfid_screen_system_with_lock_take_and_return/led_ui.cpp)
+- [rfid_screen_system_with_lock_take_and_return/lock_control.h](rfid_screen_system_with_lock_take_and_return/lock_control.h) and [rfid_screen_system_with_lock_take_and_return/lock_control.cpp](rfid_screen_system_with_lock_take_and_return/lock_control.cpp)
+- [rfid_screen_system_with_lock_take_and_return/rfid_reader.h](rfid_screen_system_with_lock_take_and_return/rfid_reader.h) and [rfid_screen_system_with_lock_take_and_return/rfid_reader.cpp](rfid_screen_system_with_lock_take_and_return/rfid_reader.cpp)
+- [rfid_screen_system_with_lock_take_and_return/http_client.h](rfid_screen_system_with_lock_take_and_return/http_client.h) and [rfid_screen_system_with_lock_take_and_return/http_client.cpp](rfid_screen_system_with_lock_take_and_return/http_client.cpp)
+
 ## System workflow
 The system operates using a two-step scanning process that determines whether a key is being taken or returned.
 
@@ -238,7 +253,10 @@ Create a Google Spreadsheet with the following sheets:
 
 ## ESP32 setup
 
-In [rfid_screen_system_with_lock_take_and_return](https://github.com/anastasijaIZV/key-managment-cabinet/tree/main/rfid_screen_system_with_lock_take_and_return), update:
+In [rfid_screen_system_with_lock_take_and_return](https://github.com/anastasijaIZV/key-managment-cabinet/tree/main/rfid_screen_system_with_lock_take_and_return):
+
+1. Copy [rfid_screen_system_with_lock_take_and_return/config.h.example](rfid_screen_system_with_lock_take_and_return/config.h.example) to `config.h`
+2. Update `config.h` with:
 
 - WiFi SSID
 - WiFi password
