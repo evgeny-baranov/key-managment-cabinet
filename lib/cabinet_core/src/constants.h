@@ -38,7 +38,7 @@ constexpr unsigned long HTTP_TIMEOUT_MS = 3000;
 constexpr unsigned long RESULT_VISIBLE_MS = 700;
 
 // Serial
-constexpr int SERIAL_BAUD = 115200;
+constexpr int SERIAL_BAUD_RATE = 115200;
 
 // Protocol strings
 constexpr const char* MODE_CLASSIFY = "classify";

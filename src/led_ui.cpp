@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#include "constants.h"
+#include "../lib/cabinet_core/src/constants.h"
 
 void initLeds() {
   pinMode(GREEN_LED_PIN, OUTPUT);

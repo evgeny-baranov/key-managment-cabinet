@@ -2,13 +2,13 @@
 #include <WiFi.h>
 
 #include "config.h"
-#include "constants.h"
+#include "../lib/cabinet_core/src/constants.h"
 #include "display_ui.h"
-#include "fsm.h"
+#include "../lib/cabinet_core/src/fsm.h"
 #include "http_client.h"
 #include "led_ui.h"
 #include "lock_control.h"
-#include "protocol.h"
+#include "../lib/cabinet_core/src/protocol.h"
 #include "rfid_reader.h"
 
 namespace {
@@ -191,7 +191,7 @@ void processClassified(const ClassifiedUid& classified) {
 }
 
 void setup() {
-  Serial.begin(SERIAL_BAUD);
+  Serial.begin(SERIAL_BAUD_RATE);
   delay(300);
 
   initLeds();

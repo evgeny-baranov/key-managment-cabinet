@@ -2,7 +2,7 @@
 
 #include <HardwareSerial.h>
 
-#include "constants.h"
+#include "../lib/cabinet_core/src/constants.h"
 
 namespace {
 HardwareSerial RFID(RFID_UART_PORT);

@@ -4,8 +4,8 @@
 #include <WiFi.h>
 
 #include "config.h"
-#include "constants.h"
-#include "protocol.h"
+#include "../lib/cabinet_core/src/constants.h"
+#include "../lib/cabinet_core/src/protocol.h"
 
 String httpGet(const String& url) {
   if (WiFi.status() != WL_CONNECTED) {

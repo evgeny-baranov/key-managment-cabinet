@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#include "constants.h"
+#include "../lib/cabinet_core/src/constants.h"
 
 void initLock() {
   pinMode(RELAY_PIN, OUTPUT);
