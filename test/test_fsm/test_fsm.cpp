@@ -3,6 +3,7 @@
 
 #include "cabinet_workflow.h"
 #include "fsm.h"
+#include "protocol.h"
 
 namespace {
 ClassifiedUid makeUser(const char* uid, const char* name) {
@@ -205,8 +206,46 @@ void test_known_process_denial_maps_to_process_denied() {
   TEST_ASSERT_EQUAL_INT((int)CabinetEventType::ProcessDenied, (int)event);
 }
 
-void setup() {
-  delay(2000);
+// Verifies protocol boundary behavior for classify ERROR responses,
+// ensuring backend/transport failures are classified as ServerError.
+void test_parse_classify_error_maps_to_server_error() {
+  ClassifiedUid parsed = parseClassifyResponse("ERROR");
+
+  TEST_ASSERT_EQUAL_INT((int)ScanType::ServerError, (int)parsed.type);
+  TEST_ASSERT_EQUAL_INT((int)ServerCode::Error, (int)parsed.code);
+}
+
+// Verifies protocol parsing for a successful TAKE response,
+// including action decoding and user/key payload extraction.
+void test_parse_process_ok_take_payload() {
+  ProcessResult parsed = parseProcessResponse("OK|TAKE|Alice|Lab");
+
+  TEST_ASSERT_TRUE(parsed.ok);
+  TEST_ASSERT_EQUAL_INT((int)ServerCode::Ok, (int)parsed.code);
+  TEST_ASSERT_EQUAL_STRING("TAKE", parsed.action.c_str());
+  TEST_ASSERT_EQUAL_STRING("Alice", parsed.userName.c_str());
+  TEST_ASSERT_EQUAL_STRING("Lab", parsed.keyName.c_str());
+}
+
+// Verifies protocol parsing for a successful RETURN response,
+// including action decoding and user/key payload extraction.
+void test_parse_process_ok_return_payload() {
+  ProcessResult parsed = parseProcessResponse("OK|RETURN|Alice|Lab");
+
+  TEST_ASSERT_TRUE(parsed.ok);
+  TEST_ASSERT_EQUAL_INT((int)ServerCode::Ok, (int)parsed.code);
+  TEST_ASSERT_EQUAL_STRING("RETURN", parsed.action.c_str());
+  TEST_ASSERT_EQUAL_STRING("Alice", parsed.userName.c_str());
+  TEST_ASSERT_EQUAL_STRING("Lab", parsed.keyName.c_str());
+}
+
+void setUp(void) {
+}
+
+void tearDown(void) {
+}
+
+void runTests() {
   UNITY_BEGIN();
 
   RUN_TEST(test_idle_user_scan_starts_take_flow);
@@ -220,9 +259,26 @@ void setup() {
   RUN_TEST(test_server_error_classification_requests_server_fail_effect);
   RUN_TEST(test_successful_process_with_mismatched_action_fails);
   RUN_TEST(test_known_process_denial_maps_to_process_denied);
+  RUN_TEST(test_parse_classify_error_maps_to_server_error);
+  RUN_TEST(test_parse_process_ok_take_payload);
+  RUN_TEST(test_parse_process_ok_return_payload);
 
   UNITY_END();
 }
 
+#ifdef ARDUINO
+void setup() {
+  delay(2000);
+  runTests();
+}
+
 void loop() {
 }
+#else
+int main(int argc, char** argv) {
+  (void)argc;
+  (void)argv;
+  runTests();
+  return 0;
+}
+#endif
